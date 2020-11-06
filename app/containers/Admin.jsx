@@ -1,115 +1,157 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect, useState, useCallback } from "react";
+import PropTypes from "prop-types";
+// TODO: change relative import
+import { scoringText } from "../utils/utils";
 
-import fetchWP from '../utils/fetchWP';
+export default function Admin() {
+  const [blogId, setBlogId] = useState("");
+  const [postId, setPostId] = useState("0");
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [dateCreated, setDateCreated] = useState("");
+  const [words, setWords] = useState(0);
+  const [headings, setHeadings] = useState(0);
+  const [paragraphs, setParagraphs] = useState(0);
+  const [totalRating, setTotalRating] = useState("");
+  const [headingsRating, setHeadingsRating] = useState("");
+  const [paragraphRating, setParagraphRating] = useState("");
+  const [customErrorRating, setCustomErrorRating] = useState("");
+  const [posts, setPosts] = useState([]);
+  const [wpUrl, setWpUrl] = useState("");
+  const baseUrl = "http://34.247.253.222:5005/api";
+  let fetchedPosts = [];
+  let url = "";
 
-export default class Admin extends Component {
-  constructor(props) {
-    super(props);
+  useEffect(() => {
+    url = window.location.origin;
+    url = url.replace(/(^\w+:|^)\/\//, "");
+    console.log("url: ", url);
+    /* uncomment this when in production
+    setWpUrl(url)
+    */
+    setWpUrl("linnsreise.no");
+  }, []);
 
-    this.state = {
-      exampleSetting: '',
-      savedExampleSetting: ''
-    };
+  useEffect(() => {
+    if (wpUrl.length > 1) {
+      console.log("bigger than 1");
+      getBlogIdFromUrl();
+    }
+  }, [wpUrl]);
 
-    this.fetchWP = new fetchWP({
-      restURL: this.props.wpObject.api_url,
-      restNonce: this.props.wpObject.api_nonce,
-    });
+  useEffect(() => {
+    getPosts();
+  }, [blogId]);
 
-    this.getSetting();
-  }
-
-  getSetting = () => {
-    this.fetchWP.get( 'example' )
-    .then(
-      (json) => this.setState({
-        exampleSetting: json.value,
-        savedExampleSetting: json.value
-      }),
-      (err) => console.log( 'error', err )
-    );
-  };
-
-  updateSetting = () => {
-    this.fetchWP.post( 'example', { exampleSetting: this.state.exampleSetting } )
-    .then(
-      (json) => this.processOkResponse(json, 'saved'),
-      (err) => console.log('error', err)
-    );
-  }
-
-  deleteSetting = () => {
-    this.fetchWP.delete( 'example' )
-    .then(
-      (json) => this.processOkResponse(json, 'deleted'),
-      (err) => console.log('error', err)
-    );
-  }
-
-  processOkResponse = (json, action) => {
-    if (json.success) {
-      this.setState({
-        exampleSetting: json.value,
-        savedExampleSetting: json.value,
+  const getPost = useCallback(async () => {
+    await fetch(baseUrl + "/posts/" + postId)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("Data: ", data[0]);
+        if (data[0] === undefined) return;
+        setTitle(data[0].title);
+        getAuthor(data[0].blog_id);
+        setDateCreated(data[0].created_date);
+        setWords(data[0].word_count);
+        setHeadings(data[0].headings_count);
+        setParagraphs(data[0].paragraph_count);
+        setTotalRating(data[0].total_rating);
+        setHeadingsRating(data[0].headings_rating);
+        setParagraphRating(data[0].paragraph_rating);
+        setCustomErrorRating(data[0].custom_error_rating);
       });
-    } else {
-      console.log(`Setting was not ${action}.`, json);
-    }
-  }
+  }, [postId]);
 
-  updateInput = (event) => {
-    this.setState({
-      exampleSetting: event.target.value,
-    });
-  }
+  const getAuthor = useCallback(async (blogId) => {
+    await fetch(baseUrl + "/blogs/" + blogId)
+      .then((res) => res.json())
+      .then((data) => {
+        setAuthor(data[0].name);
+      });
+  }, []);
 
-  handleSave = (event) => {
-    event.preventDefault();
-    if ( this.state.exampleSetting === this.state.savedExampleSetting ) {
-      console.log('Setting unchanged');
-    } else {
-      this.updateSetting();
-    }
-  }
+  const getPosts = useCallback(async () => {
+    if (blogId.length < 1) return;
 
-  handleDelete = (event) => {
-    event.preventDefault();
-    this.deleteSetting();
-  }
+    await fetch(baseUrl + "/user/" + blogId + "/posts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data[0] === undefined) return;
+        data.map((d) => {
+          fetchedPosts.push({ id: d.id, title: d.title });
+        });
+        setPosts(fetchedPosts);
+        console.log(fetchedPosts);
+      });
+  }, [blogId]);
 
-  render() {
-    return (
-      <div className="wrap">
-        <form>
-          <h1>WP Reactivate Settings</h1>
-          
-          <label>
-          Example Setting:
-            <input
-              type="text"
-              value={this.state.exampleSetting}
-              onChange={this.updateInput}
-            />
-          </label>
+  const getBlogIdFromUrl = useCallback(async () => {
+    console.log("getBlogIdFromUrl: " + wpUrl);
+    await fetch(baseUrl + "/url/" + wpUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data[0] === undefined) return;
+        console.log("data:", data);
+        setBlogId(data[0].id);
+      });
+  }, [wpUrl]);
 
-          <button
-            id="save"
-            className="button button-primary"
-            onClick={this.handleSave}
-          >Save</button>
+  useEffect(() => {
+    getPost();
+  }, [postId]);
 
-          <button
-            id="delete"
-            className="button button-primary"
-            onClick={this.handleDelete}
-          >Delete</button>
-        </form>
-      </div>
-    );
-  }
+  return (
+    <div className="wrap">
+      <h1>Score</h1>
+
+      <select
+        value={postId}
+        onChange={(e) => setPostId(String(e.target.value))}
+      >
+        <option value="0" disabled hidden>
+          Vælg Post
+        </option>
+        {posts.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.title}
+          </option>
+        ))}
+      </select>
+      <hr></hr>
+      <p>
+        Af: {author} - Skrevet: {dateCreated}
+      </p>
+      <p>Antall ord: {words}</p>
+      <p>Antall overskrifter: {headings}</p>
+      <p>Antall avsnitt: {paragraphs}</p>
+
+      <details open>
+        <summary>Samlet karakter: {totalRating}</summary>
+        <p>{scoringText.TEST_TEXT}</p>
+      </details>
+
+      <details>
+        <summary>Overskrifter: {headingsRating}</summary>
+        <p>{scoringText.TEST_TEXT}</p>
+      </details>
+
+      <details>
+        <summary>Avsnitt: {paragraphRating}</summary>
+        <p>{scoringText.TEST_TEXT}</p>
+      </details>
+
+      <details>
+        <summary>Tilpasset: {customErrorRating}</summary>
+        <p>{scoringText.TEST_TEXT}</p>
+      </details>
+      <p>
+        For mer informasjon om hvordan man skriver gode artikler og hvordan
+        evalueringen foregår, <a href="https://upfeed.no">klikk her.</a>
+      </p>
+    </div>
+  );
 }
 
 Admin.propTypes = {
-  wpObject: PropTypes.object
+  wpObject: PropTypes.object,
 };
